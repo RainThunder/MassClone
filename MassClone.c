@@ -91,6 +91,7 @@ int main(int argc, char **argv){
     }
     
     printf("Done.");
+    fclose(f);
     getch();
     return 0;
 }
