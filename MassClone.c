@@ -1,6 +1,6 @@
 /**
  * MassClone - A simple tool to clone a box of Pokemon, written in C
- * 
+ *
  * Save file structure and CRC-16 code are taken from PKHeX.
  * Memecrypto code are taken from SciresM's memecrypto_test.
  */
@@ -13,7 +13,7 @@
 #include <openssl/rsa.h>
 #include <openssl/sha.h>
 
-#ifdef WIN32
+#ifdef _WIN32
 #include <conio.h>
 #endif
 
@@ -84,7 +84,7 @@ static unsigned char pubexp[] = {
 unsigned short crc16_ccitt(char* data, int length){
     unsigned short crc = 0xFFFF;
     int i, j;
-    
+
     for (i = 0; i < length; i++){
         crc ^= data[i] << 8;
         for (j = 0; j < 8; j++){
@@ -94,7 +94,7 @@ unsigned short crc16_ccitt(char* data, int length){
                 crc <<= 1;
         }
     }
-    
+
     return crc;
 }
 
@@ -102,7 +102,7 @@ unsigned short crc16_ccitt(char* data, int length){
 unsigned short crc16_ref(char *data, int length){
     unsigned short crc = 0xFFFF, tmp;
     int i, j;
-    
+
     for (i = 0; i < length; i++){
         tmp = (data[i] ^ crc) & 0xFF;
         for (j = 0; j < 8; j++)
@@ -112,7 +112,7 @@ unsigned short crc16_ref(char *data, int length){
                 tmp >>= 1;
         crc = tmp ^ crc >> 8;
     }
-    
+
     return ~crc;
 }
 
@@ -122,21 +122,22 @@ void xor(unsigned char *in, unsigned char *b, int len){
         in[i] ^= b[i];
 }
 
-void memecrypto_aes_encrypt(unsigned char *buf, unsigned char *output, unsigned char *key){
+void memecrypto_aes_encrypt(unsigned char *buf, unsigned char *output,
+                            unsigned char *key){
     unsigned char temp[0x10];
     unsigned char temp2[0x10];
     unsigned char subkey[0x10];
     unsigned char block[0x10];
     int i;
     AES_KEY aes_key;
-    
+
     AES_set_encrypt_key(key, 128, &aes_key);
-    
+
     // AES-CBC
     for (i = 0; i < 0x10; i++)
         temp[i] = 0;
     AES_cbc_encrypt(buf, output, MEME_LEN, &aes_key, temp, AES_ENCRYPT);
-    
+
     // CMAC
     memcpy(temp, output + MEME_LEN - 0x10, 0x10);
     xor(temp, output, 0x10);
@@ -148,10 +149,10 @@ void memecrypto_aes_encrypt(unsigned char *buf, unsigned char *output, unsigned 
     subkey[0xF] = temp[0xF] << 1;
     if (temp[0] & 0x80)
         subkey[0xF] ^= 0x87;
-    
+
     // AES-PBC
     for (i = 0; i < 0x10; i++)
-        temp[i] = 0;    
+        temp[i] = 0;
     for (i = MEME_LEN - 0x10; i >= 0; i -= 0x10){
         memcpy(block, output + i, 0x10);
         xor(block, subkey, 0x10);
@@ -162,16 +163,17 @@ void memecrypto_aes_encrypt(unsigned char *buf, unsigned char *output, unsigned 
     }
 }
 
-void memecrypto_aes_decrypt(unsigned char *buf, unsigned char *output, unsigned char *key){
+void memecrypto_aes_decrypt(unsigned char *buf, unsigned char *output,
+                            unsigned char *key){
     unsigned char temp[0x10];
-    unsigned char subkey[0x10];    
+    unsigned char subkey[0x10];
     unsigned char block[0x10];
     unsigned char temp_cbc[MEME_LEN];
     int i;
     AES_KEY aes_key;
-    
+
     AES_set_decrypt_key(key, 128, &aes_key);
-    
+
     // AES-PBC
     for (i = 0; i < 0x10; i++)
         temp[i] = 0;
@@ -181,7 +183,7 @@ void memecrypto_aes_decrypt(unsigned char *buf, unsigned char *output, unsigned 
         AES_ecb_encrypt(block, temp, &aes_key, AES_DECRYPT);
         memcpy(output + i, temp, 0x10);
     }
-    
+
     // CMAC
     memcpy(temp, output + MEME_LEN - 0x10, 0x10);
     xor(temp, output, 0x10);
@@ -193,40 +195,40 @@ void memecrypto_aes_decrypt(unsigned char *buf, unsigned char *output, unsigned 
     subkey[0xF] = temp[i] << 1;
     if (temp[0] & 0x80)
         subkey[0xF] ^= 0x87;
-    
+
     for (i = 0; i < MEME_LEN; i += 0x10)
         xor(output + i, subkey, 0x10);
-    
+
     for (i = 0; i < 0x10; i++)
         temp[i] = 0;
     AES_cbc_encrypt(output, temp_cbc, MEME_LEN, &aes_key, temp, AES_DECRYPT);
     memcpy(output, temp_cbc, MEME_LEN);
 }
 
-int memecrypto_sign(unsigned char *input, unsigned char *output, int len){    
+int memecrypto_sign(unsigned char *input, unsigned char *output, int len){
     unsigned char memebuf[MEME_LEN];
     unsigned char hash[0x14];
     SHA_CTX sha_ctx;
     RSA *rsa;
-    
+
     if (len < MEME_LEN)
         return 0;
-    
+
     memcpy(output, input, len - MEME_LEN);
-    
+
     SHA1(input, len - 8, hash);
     memcpy(input + len - 8, hash, 8); // Update SHA1 hash
-    
+
     SHA1_Init(&sha_ctx);
     SHA1_Update(&sha_ctx, pubkeyder, PUBKEYDER_LEN);
     if (len > MEME_LEN)
         SHA1_Update(&sha_ctx, input, len - MEME_LEN);
     SHA1_Final(hash, &sha_ctx);
-    
+
     memcpy(memebuf, input + (len - MEME_LEN), MEME_LEN);
     memecrypto_aes_encrypt(memebuf, memebuf, hash);
     memebuf[0x0] &= 0x7F;
-    
+
     // RSA
     rsa = RSA_new();
     rsa->n = BN_bin2bn(modulus, RSA_BYTES, NULL);
@@ -238,18 +240,18 @@ int memecrypto_sign(unsigned char *input, unsigned char *output, int len){
     return 1;
 }
 
-int memecrypto_verify(unsigned char *input, unsigned char *output, int len){    
+int memecrypto_verify(unsigned char *input, unsigned char *output, int len){
     unsigned char memebuf_1[MEME_LEN];
     unsigned char memebuf_2[MEME_LEN];
     unsigned char hash[0x14];
     SHA_CTX sha_ctx;
     RSA *rsa;
-    
+
     if (len < MEME_LEN)
         return 0;
 
     memcpy(output, input, len - MEME_LEN);
-    
+
     // RSA
     rsa = RSA_new();
     rsa->n = BN_bin2bn(modulus, RSA_BYTES, NULL);
@@ -258,24 +260,24 @@ int memecrypto_verify(unsigned char *input, unsigned char *output, int len){
     RSA_public_decrypt(MEME_LEN, input + (len - MEME_LEN), memebuf_1, rsa,
         RSA_NO_PADDING);
     RSA_free(rsa);
-    
+
     SHA1_Init(&sha_ctx);
     SHA1_Update(&sha_ctx, pubkeyder, PUBKEYDER_LEN);
     if (len > MEME_LEN)
         SHA1_Update(&sha_ctx, input, len - MEME_LEN);
     SHA1_Final(hash, &sha_ctx); // Hash is now aes key
-    
+
     memcpy(memebuf_2, memebuf_1, MEME_LEN);
     memebuf_2[0] |= 0x80;
     memecrypto_aes_decrypt(memebuf_1, memebuf_1, hash);
     memecrypto_aes_decrypt(memebuf_2, memebuf_2, hash);
-    
+
     // Try memebuf_1
     memcpy(output + (len - MEME_LEN), memebuf_1, MEME_LEN);
     SHA1(output, len - 8, hash);
     if (!memcmp(hash, output + len - 8, 8))
         return 1;
-    
+
     // Try memebuf_2
     memcpy(output + (len - MEME_LEN), memebuf_2, MEME_LEN);
     SHA1(output, len - 8, hash);
@@ -294,31 +296,31 @@ int main(int argc, char **argv){
     struct game_info_t info;
     enum game_e game;
     int storage_size = 0;
-    
+
     printf("MassClone v2.0 - written by RainThunder\n\n");
-    
+
     // Argument check
     if (argc == 1){
         printf("Syntax: MassClone filename\n");
-#ifdef WIN32
+#ifdef _WIN32
         getch();
 #endif
         return 0;
     }
-    
+
     f = fopen(argv[1], "r+b");
     fseek(f, 0, SEEK_END);
     length = ftell(f);
     while ((game < GAME_COUNT) && (game_info[game].save_size != length)) game++;
     if (game == GAME_COUNT){
         printf("Unsupported file size: %d\n", length);
-#ifdef WIN32
+#ifdef _WIN32
         getch();
 #endif
         return 0;
     }
     info = game_info[game];
-    
+
     // Input prompt
     printf("Input the first box number: ");
     scanf("%d", &boxa);
@@ -331,22 +333,22 @@ int main(int argc, char **argv){
         if ((agree == 'Y') || (agree == 'y')) break;
     }
     printf("\n");
-    
+
     // Read
     storage_size = info.box_size * info.box_max;
     fseek(f, info.box_offset, SEEK_SET);
     boxdata = (char *)malloc(storage_size);
     fread(boxdata, sizeof(char), storage_size, f);
-    
+
     // Clone
     memcpy(boxdata + (boxb - 1) * info.box_size,
         boxdata + (boxa - 1) * info.box_size,
         info.box_size);
-    
+
     // Write box data
     fseek(f, info.box_offset, SEEK_SET);
     fwrite(boxdata, sizeof(char), storage_size, f);
-    
+
     // Calculate and write checksums
     if (game == XY){
         unsigned short checksum = crc16_ccitt(boxdata, storage_size);
@@ -365,11 +367,11 @@ int main(int argc, char **argv){
         char decrypted_sig[0x80];
         char hash[0x20];
         int i;
-        
+
         // Box data checksum
         fseek(f, 0x6BC8A, SEEK_SET);
         fwrite(&checksum, sizeof(unsigned short), 1, f);
-        
+
         // Save signature
         fseek(f, 0x6BB00, SEEK_SET);
         fread(current_sig, sizeof(char), 0x80, f);
@@ -384,11 +386,11 @@ int main(int argc, char **argv){
         fseek(f, 0x6BB00, SEEK_SET);
         fwrite(current_sig, sizeof(char), 0x80, f);
     }
-    
+
     free(boxdata);
     fclose(f);
     printf("Done.");
-#ifdef WIN32
+#ifdef _WIN32
     getch();
 #endif
     return 0;

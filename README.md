@@ -13,5 +13,5 @@ A simple application to clone a box of pokemon, written in C. This tool is compa
 * Input the original box and destination box, press *Y* to confirm.
 
 # Credits:
-* Save structure are taken from [https://github.com/kwsch/PKHeX](PKHeX)
-* Memecrypto code are taken from SciresM's [https://github.com/SciresM/memecrypto_test](memecrypto_test)
+* Save structure are taken from [PKHeX](https://github.com/kwsch/PKHeX)
+* Memecrypto code are taken from SciresM's [memecrypto_test](https://github.com/SciresM/memecrypto_test)
